@@ -1,7 +1,7 @@
 import sys
-import subprocess
 import ctypes
 from datetime import datetime
+import os
 
 
 def is_admin():
@@ -13,56 +13,61 @@ def is_admin():
 
 def set_system_time(date_str, time_str):
     try:
+        print(f"Received date: {date_str}, time: {time_str}")
         new_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S")
 
-        SYSTEMTIME = ctypes.c_uint16 * 8
+        class SYSTEMTIME(ctypes.Structure):
+            _fields_ = [
+                ("wYear", ctypes.c_ushort),
+                ("wMonth", ctypes.c_ushort),
+                ("wDayOfWeek", ctypes.c_ushort),
+                ("wDay", ctypes.c_ushort),
+                ("wHour", ctypes.c_ushort),
+                ("wMinute", ctypes.c_ushort),
+                ("wSecond", ctypes.c_ushort),
+                ("wMilliseconds", ctypes.c_ushort),
+            ]
+
         st = SYSTEMTIME(
-            new_time.year,
-            new_time.month,
-            new_time.weekday(),
-            new_time.day,
-            new_time.hour,
-            new_time.minute,
-            new_time.second,
-            0,
+            wYear=new_time.year,
+            wMonth=new_time.month,
+            wDayOfWeek=new_time.weekday(),
+            wDay=new_time.day,
+            wHour=new_time.hour,
+            wMinute=new_time.minute,
+            wSecond=new_time.second,
+            wMilliseconds=0,
         )
 
         SetLocalTime = ctypes.windll.kernel32.SetLocalTime
         SetLocalTime.argtypes = [ctypes.POINTER(SYSTEMTIME)]
         SetLocalTime.restype = ctypes.c_bool
 
-        if SetLocalTime(ctypes.byref(st)):
+        if not is_admin():
+            print("Requesting administrative privileges...")
+            params = f'"{os.path.abspath(__file__)}" {date_str} {time_str}'
+            ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", sys.executable, params, None, 1
+            )
+            sys.exit(0)
+
+        if not SetLocalTime(ctypes.byref(st)):
             error_code = ctypes.windll.kernel32.GetLastError()
-            return f"Failed to set system time. Error code: {error_code}"
+            print(f"Failed to set system time. Error code: {error_code}")
         else:
-            return "System time has been updated successfully."
+            print("System time has been updated successfully.")
 
     except ValueError:
-        return "Invalid datetime format. Please use YYYY-MM-DD HH:MM:SS"
+        print("Invalid datetime format. Please use YYYY-MM-DD HH:MM:SS")
     except Exception as e:
-        return f"Error: {e}"
+        print(f"Error: {e}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python ts.py <date> <time>")
+    if len(sys.argv) < 3:
+        print("Usage: ts.py <date> <time>")
         sys.exit(1)
 
-    date = sys.argv[1]
-    time = sys.argv[2]
-
-    if not is_admin():
-        try:
-            script_path = sys.argv[0]
-            powershell_cmd = [
-                "powershell.exe",
-                "-Command",
-                f"Start-Process python -ArgumentList '{script_path}', '{date}', '{time}' -Verb RunAs",
-            ]
-            subprocess.check_call(" ".join(powershell_cmd), shell=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to run script as admin: {e}")
-            sys.exit(1)
-
-    result = set_system_time(date, time)
-    print(result)
+    date_str = sys.argv[1]
+    time_str = sys.argv[2]
+    set_system_time(date_str, time_str)

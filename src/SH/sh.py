@@ -1,30 +1,35 @@
 import socket
 import configparser
-import subprocess
-import datetime
+import ctypes
+import os
+import sys
 
-# Chargement de la configuration du port depuis config.ini
 config = configparser.ConfigParser()
 config.read("src/NC/config.ini")
 TCP_PORT = int(config["NetworkClock"]["port"])
 
 
-def get_current_time(format_string):
-    current_time = datetime.datetime.now()
-    formatted_time = current_time.strftime(format_string)
-    return formatted_time
-
-
 def set_system_time(date, time):
     try:
-        powershell_cmd = [
-            "powershell.exe",
-            "-Command",
-            f"Start-Process py -ArgumentList ' \"src/SH/ts.py\" {date} {time}' -Verb RunAs",
-        ]
-        subprocess.check_call(" ".join(powershell_cmd), shell=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to run script as admin: {e}")
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        script_path = os.path.join(script_dir, "ts.py")
+
+        params = f'"{script_path}" "{date}" "{time}"'
+        print(f"Executing: python {params}")
+
+        result = ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", sys.executable, params, None, 1
+        )
+
+        if result <= 32:
+            print(
+                f"Failed to execute script as admin, ShellExecuteW returned: {result}"
+            )
+        else:
+            print(f"Script executed, ShellExecuteW returned: {result}")
+
+    except Exception as e:
+        print(f"Error: {e}")
 
 
 def main():
@@ -37,7 +42,7 @@ def main():
         if choice == "1":
             format_input = input("Enter format string or 1 for default format: ")
             if format_input.startswith("1"):
-                format_string = "%Y-%m-%d %H:%M:%S"  # Format par défaut
+                format_string = "%Y-%m-%d %H:%M:%S"
             else:
                 format_string = format_input
 
@@ -56,7 +61,11 @@ def main():
 
         elif choice == "2":
             new_time = input("Enter new system time (YYYY-MM-DD HH:MM:SS): ")
-            set_system_time(new_time.split(" ")[0], new_time.split(" ")[1])
+            try:
+                date, time = new_time.split(" ")
+                set_system_time(date, time)
+            except ValueError:
+                print("Invalid datetime format. Please use YYYY-MM-DD HH:MM:SS")
 
         elif choice == "3":
             break
