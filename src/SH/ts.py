@@ -1,7 +1,8 @@
 import sys
+import subprocess
 import ctypes
-import datetime
-import pytz
+from datetime import datetime
+
 
 def is_admin():
     try:
@@ -9,45 +10,30 @@ def is_admin():
     except:
         return False
 
-def set_system_time(new_time_str):
+
+def set_system_time(date_str, time_str):
     try:
-        # Conversion de la chaîne de temps en objet datetime
-        new_time = datetime.datetime.strptime(new_time_str, '%Y-%m-%d %H:%M:%S')
+        new_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S")
 
-        # Convertir en UTC pour éviter les problèmes de fuseau horair   e
-        new_time_utc = pytz.utc.localize(new_time)
-
-        
-
-        # Définition de la structure SYSTEMTIME
-        class SYSTEMTIME(ctypes.Structure):
-            _fields_ = [
-                ("wYear", ctypes.c_ushort),
-                ("wMonth", ctypes.c_ushort),
-                ("wDayOfWeek", ctypes.c_ushort),
-                ("wDay", ctypes.c_ushort),
-                ("wHour", ctypes.c_ushort),
-                ("wMinute", ctypes.c_ushort),
-                ("wSecond", ctypes.c_ushort),
-                ("wMilliseconds", ctypes.c_ushort)
-            ]
-
-        # Création d'une instance de SYSTEMTIME
-        system_time = SYSTEMTIME(
-            wYear=new_time_utc.year,
-            wMonth=new_time_utc.month,
-            wDayOfWeek=new_time_utc.weekday(),
-            wDay=new_time_utc.day,
-            wHour=new_time_utc.hour,
-            wMinute=new_time_utc.minute,
-            wSecond=new_time_utc.second,
-            wMilliseconds=new_time_utc.microsecond // 1000
+        SYSTEMTIME = ctypes.c_uint16 * 8
+        st = SYSTEMTIME(
+            new_time.year,
+            new_time.month,
+            new_time.weekday(),
+            new_time.day,
+            new_time.hour,
+            new_time.minute,
+            new_time.second,
+            0,
         )
 
-        # Appel à l'API Windows pour changer l'heure système
-        success = ctypes.windll.kernel32.SetSystemTime(ctypes.byref(system_time))
-        if success == 0:
-            return f"Failed to set system time. Error code: {ctypes.windll.kernel32.GetLastError()}"
+        SetLocalTime = ctypes.windll.kernel32.SetLocalTime
+        SetLocalTime.argtypes = [ctypes.POINTER(SYSTEMTIME)]
+        SetLocalTime.restype = ctypes.c_bool
+
+        if SetLocalTime(ctypes.byref(st)):
+            error_code = ctypes.windll.kernel32.GetLastError()
+            return f"Failed to set system time. Error code: {error_code}"
         else:
             return "System time has been updated successfully."
 
@@ -56,13 +42,27 @@ def set_system_time(new_time_str):
     except Exception as e:
         return f"Error: {e}"
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: python ts.py <date> <time>")
+        sys.exit(1)
+
+    date = sys.argv[1]
+    time = sys.argv[2]
+
     if not is_admin():
-        # Relancer le script avec des privilèges administratifs si nécessaire
-        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
-    elif len(sys.argv) < 2:
-        print("Usage: python ts.py <new_time>")
-    else:
-        new_time = sys.argv[1]
-        result = set_system_time(new_time)
-        print(result)
+        try:
+            script_path = sys.argv[0]
+            powershell_cmd = [
+                "powershell.exe",
+                "-Command",
+                f"Start-Process python -ArgumentList '{script_path}', '{date}', '{time}' -Verb RunAs",
+            ]
+            subprocess.check_call(" ".join(powershell_cmd), shell=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to run script as admin: {e}")
+            sys.exit(1)
+
+    result = set_system_time(date, time)
+    print(result)
