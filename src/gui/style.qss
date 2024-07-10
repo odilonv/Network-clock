@@ -1,0 +1,29 @@
+/* Exemple de style */
+QMainWindow {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+QPushButton {
+    background-color: #4CAF50; /* Green */
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+}
+
+QLineEdit, QLabel {
+    padding: 10px;
+    font-size: 16px;
+}
+
+QLineEdit[placeholderText="Enter format string"],
+QLineEdit[placeholderText="Enter new system time (YYYY-MM-DD HH:MM:SS)"] {
+    background-color: #f9f9f9;
+    border: 1px solid #ccc;
+}
