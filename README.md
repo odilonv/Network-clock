@@ -40,25 +40,25 @@ python src/ts.py HH:MM:SS
 ```
 
 ## Directory Structure
-network_clock/
-├── .gitignore
-├── README.md
-├── requirements.txt
-├── config/
-│   └── port.txt
-├── src/
-│   ├── __init__.py
-│   ├── sh.py         # Main program (Standard Handler)
-│   ├── ts.py         # Time setting program (Time Setup)
-│   ├── ui.py         # User Interface
-│   ├── server.py     # TCP server code
-│   └── utils.py      # Utility functions
-└── tests/
-    ├── __init__.py
-    ├── test_sh.py
-    ├── test_ts.py
-    ├── test_server.py
-    └── test_utils.py
+`Network_clock/` <br>
+├── `.gitignore` <br>
+├── `README.md` <br>
+├── `requirements.txt` <br>
+├── `config/` <br>
+│   └── `port.txt` <br>
+├── `src/` <br>
+│   ├── `__init__.py` <br>
+│   ├── `sh.py`         # Main program (Standard Handler) <br>
+│   ├── `ts.py`         # Time setting program (Time Setup) <br>
+│   ├── `ui.py`         # User Interface <br>
+│   ├── `server.py`     # TCP server code <br>
+│   └── `utils.py`      # Utility functions <br>
+└── `tests/` <br>
+    ├── `__init__.py` <br>
+    ├── `test_sh.py` <br>
+    ├── `test_ts.py` <br>
+    ├── `test_server.py` <br>
+    └── `test_utils.py` <br>
 
 ## Configuration
 - **TCP Server Port**: Set the desired port number in config/port.txt.
