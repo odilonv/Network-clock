@@ -17,6 +17,8 @@ def set_system_time(new_time_str):
         # Convertir en UTC pour éviter les problèmes de fuseau horair   e
         new_time_utc = pytz.utc.localize(new_time)
 
+        
+
         # Définition de la structure SYSTEMTIME
         class SYSTEMTIME(ctypes.Structure):
             _fields_ = [

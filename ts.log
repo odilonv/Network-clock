@@ -1,0 +1,5 @@
+2024-10-07 14:06:07,361 Error: module 'ctypes' has no attribute 'cushort'
+2024-10-07 14:06:10,147 Error: module 'ctypes' has no attribute 'cushort'
+2024-10-07 14:06:54,384 Error: module 'ctypes' has no attribute 'cushort'
+2024-10-07 14:06:55,713 Error: module 'ctypes' has no attribute 'cushort'
+2024-10-07 14:07:00,697 Error: module 'ctypes' has no attribute 'cushort'
