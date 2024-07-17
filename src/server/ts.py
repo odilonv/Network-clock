@@ -11,6 +11,31 @@ def is_admin():
         return False
 
 
+def drop_privileges():
+    if os.name != "nt":  # Assuming a Unix-like system
+        import pwd, grp
+
+        uid = pwd.getpwnam("nobody").pw_uid
+        gid = grp.getgrnam("nogroup").gr_gid
+        os.setgid(gid)
+        os.setuid(uid)
+    else:
+        # On Windows, reduce privileges by setting token privileges
+        import win32api
+        import win32security
+        import ntsecuritycon as con
+
+        token = win32security.OpenProcessToken(
+            win32api.GetCurrentProcess(),
+            win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
+        )
+        privs = (
+            (win32security.LookupPrivilegeValue(None, con.SE_SHUTDOWN_NAME), 0),
+            (win32security.LookupPrivilegeValue(None, con.SE_SYSTEMTIME_NAME), 0),
+        )
+        win32security.AdjustTokenPrivileges(token, False, privs)
+
+
 def set_system_time(date_str, time_str):
     try:
         print(f"Received date: {date_str}, time: {time_str}")
@@ -71,3 +96,4 @@ if __name__ == "__main__":
     date_str = sys.argv[1]
     time_str = sys.argv[2]
     set_system_time(date_str, time_str)
+    drop_privileges()
