@@ -23,29 +23,29 @@ TCP_PORT = int(config["NetworkClock"]["port"])
 commands = {"yyyy": "%Y", "hh": "%H", "nn": "%M", "dd": "%d", "mm": "%m", "ss": "%S"}
 
 
+def subscribe_to_dep():
+    try:
+        if os.name == "nt":
+            ctypes.windll.kernel32.SetProcessDEPPolicy(1)
+    except Exception as e:
+        print(f"Error subscribing to DEP: {e}")
+
+
 def drop_privileges():
-    if os.name != "nt":  # Assuming a Unix-like system
-        import pwd, grp
+    # On Windows, reduce privileges by setting token privileges
+    import win32api
+    import win32security
+    import ntsecuritycon as con
 
-        uid = pwd.getpwnam("nobody").pw_uid
-        gid = grp.getgrnam("nogroup").gr_gid
-        os.setgid(gid)
-        os.setuid(uid)
-    else:
-        # On Windows, reduce privileges by setting token privileges
-        import win32api
-        import win32security
-        import ntsecuritycon as con
-
-        token = win32security.OpenProcessToken(
-            win32api.GetCurrentProcess(),
-            win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
-        )
-        privs = (
-            (win32security.LookupPrivilegeValue(None, con.SE_SHUTDOWN_NAME), 0),
-            (win32security.LookupPrivilegeValue(None, con.SE_SYSTEMTIME_NAME), 0),
-        )
-        win32security.AdjustTokenPrivileges(token, False, privs)
+    token = win32security.OpenProcessToken(
+        win32api.GetCurrentProcess(),
+        win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
+    )
+    privs = (
+        (win32security.LookupPrivilegeValue(None, con.SE_SHUTDOWN_NAME), 0),
+        (win32security.LookupPrivilegeValue(None, con.SE_SYSTEMTIME_NAME), 0),
+    )
+    win32security.AdjustTokenPrivileges(token, False, privs)
 
 
 def sanitize_input(input_str):
@@ -156,9 +156,10 @@ def set_system_time(date, time):
 
 if __name__ == "__main__":
     try:
-        server = server_thread()
-
+        subscribe_to_dep()
         drop_privileges()
+
+        server = server_thread()
 
         while True:
             command = input("> ").strip()
