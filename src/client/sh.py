@@ -4,11 +4,57 @@ import os
 import configparser
 import sys
 
-config_path = os.path.join("src", "config.ini")
+import socket
+import threading
+import configparser
+import datetime
+import os
+import ctypes
+import sys
+import win32api
+import win32security
+import ntsecuritycon as con
+
+
+# Function to determine the configuration path
+def get_config_path():
+    if os.name == "nt":  # Windows
+        app_data = os.getenv("APPDATA")
+        config_dir = os.path.join(app_data, "NetworkClock")
+
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir, exist_ok=True)
+
+    return os.path.join(config_dir, "config.ini")
+
+
+config_path = get_config_path()
+
+# Ensure the configuration file exists with default values if not present
+if not os.path.exists(config_path):
+    config = configparser.ConfigParser()
+    config["NetworkClock"] = {"port": "12345"}
+    with open(config_path, "w") as configfile:
+        config.write(configfile)
 
 config = configparser.ConfigParser()
 config.read(config_path)
-TCP_PORT = int(config["NetworkClock"]["port"])
+
+
+# Validate the port value
+def validate_port(port_str):
+    try:
+        port = int(port_str)
+        if 1 <= port <= 65535:
+            return port
+        else:
+            raise ValueError("Port number out of range")
+    except ValueError as e:
+        print(f"Invalid port value: {e}")
+        sys.exit(1)
+
+
+TCP_PORT = validate_port(config["NetworkClock"]["port"])
 
 allowed_commands = ["yyyy", "hh", "nn", "dd", "mm", "ss"]
 

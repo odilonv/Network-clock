@@ -2,6 +2,8 @@ import sys
 import ctypes
 from datetime import datetime
 import os
+import win32api
+import win32security
 
 
 def subscribe_to_dep():
@@ -13,19 +15,103 @@ def subscribe_to_dep():
 
 
 def drop_privileges():
-    import win32api
-    import win32security
-    import ntsecuritycon as con
+    try:
+        # On Windows, create a restricted token
+        current_process = win32api.GetCurrentProcess()
+        token = win32security.OpenProcessToken(
+            current_process,
+            win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
+        )
 
-    token = win32security.OpenProcessToken(
-        win32api.GetCurrentProcess(),
-        win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
-    )
-    privs = (
-        (win32security.LookupPrivilegeValue(None, con.SE_SHUTDOWN_NAME), 0),
-        (win32security.LookupPrivilegeValue(None, con.SE_SYSTEMTIME_NAME), 0),
-    )
-    win32security.AdjustTokenPrivileges(token, False, privs)
+        # List of all privileges
+        privileges = [
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_ASSIGNPRIMARYTOKEN_NAME
+            ),
+            win32security.LookupPrivilegeValue(None, win32security.SE_AUDIT_NAME),
+            win32security.LookupPrivilegeValue(None, win32security.SE_BACKUP_NAME),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_CHANGE_NOTIFY_NAME
+            ),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_CREATE_GLOBAL_NAME
+            ),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_CREATE_PAGEFILE_NAME
+            ),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_CREATE_PERMANENT_NAME
+            ),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_CREATE_SYMBOLIC_LINK_NAME
+            ),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_CREATE_TOKEN_NAME
+            ),
+            win32security.LookupPrivilegeValue(None, win32security.SE_DEBUG_NAME),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_ENABLE_DELEGATION_NAME
+            ),
+            win32security.LookupPrivilegeValue(None, win32security.SE_IMPERSONATE_NAME),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_INC_BASE_PRIORITY_NAME
+            ),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_INCREASE_QUOTA_NAME
+            ),
+            win32security.LookupPrivilegeValue(None, win32security.SE_LOAD_DRIVER_NAME),
+            win32security.LookupPrivilegeValue(None, win32security.SE_LOCK_MEMORY_NAME),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_MACHINE_ACCOUNT_NAME
+            ),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_MANAGE_VOLUME_NAME
+            ),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_PROF_SINGLE_PROCESS_NAME
+            ),
+            win32security.LookupPrivilegeValue(None, win32security.SE_RELABEL_NAME),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_REMOTE_SHUTDOWN_NAME
+            ),
+            win32security.LookupPrivilegeValue(None, win32security.SE_RESTORE_NAME),
+            win32security.LookupPrivilegeValue(None, win32security.SE_SECURITY_NAME),
+            win32security.LookupPrivilegeValue(None, win32security.SE_SHUTDOWN_NAME),
+            win32security.LookupPrivilegeValue(None, win32security.SE_SYNC_AGENT_NAME),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_SYSTEM_ENVIRONMENT_NAME
+            ),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_SYSTEM_PROFILE_NAME
+            ),
+            win32security.LookupPrivilegeValue(None, win32security.SE_SYSTEMTIME_NAME),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_TAKE_OWNERSHIP_NAME
+            ),
+            win32security.LookupPrivilegeValue(None, win32security.SE_TCB_NAME),
+            win32security.LookupPrivilegeValue(None, win32security.SE_TIME_ZONE_NAME),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_TRUSTED_CREDMAN_ACCESS_NAME
+            ),
+            win32security.LookupPrivilegeValue(None, win32security.SE_UNDOCK_NAME),
+            win32security.LookupPrivilegeValue(
+                None, win32security.SE_UNSOLICITED_INPUT_NAME
+            ),
+        ]
+
+        # Remove all privileges except SE_SYSTEMTIME_NAME
+        SE_SYSTEMTIME_NAME = win32security.LookupPrivilegeValue(
+            None, win32security.SE_SYSTEMTIME_NAME
+        )
+        new_privileges = [(SE_SYSTEMTIME_NAME, win32security.SE_PRIVILEGE_ENABLED)]
+
+        for privilege in privileges:
+            if privilege != SE_SYSTEMTIME_NAME:
+                new_privileges.append((privilege, 0))  # 0 means disable the privilege
+
+        win32security.AdjustTokenPrivileges(token, False, new_privileges)
+    except Exception as e:
+        print(f"Error dropping privileges: {e}")
 
 
 def set_system_time(date_str, time_str):
@@ -60,17 +146,17 @@ def set_system_time(date_str, time_str):
         SetLocalTime.argtypes = [ctypes.POINTER(SYSTEMTIME)]
         SetLocalTime.restype = ctypes.c_bool
 
+        # Set the system time using the new time
+        if not SetLocalTime(ctypes.byref(st)):
+            print("Failed to set system time.")
     except ValueError:
         print("Invalid datetime format. Please use YYYY-MM-DD HH:MM:SS")
 
 
 if __name__ == "__main__":
     subscribe_to_dep()
-    if len(sys.argv) < 3:
-        print("Usage: ts.py <date> <time>")
-        sys.exit(1)
+    drop_privileges()
 
     date_str = sys.argv[1]
     time_str = sys.argv[2]
     set_system_time(date_str, time_str)
-    drop_privileges()
