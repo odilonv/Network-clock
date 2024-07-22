@@ -10,13 +10,18 @@ import subprocess
 import win32api
 import win32security
 import ntsecuritycon as con
+import win32ts
 
 
 # Function to determine the configuration path
 def get_config_path():
     if os.name == "nt":  # Windows
         app_data = os.getenv("APPDATA")
+        if app_data is None:
+            raise EnvironmentError("APPDATA environment variable not set.")
         config_dir = os.path.join(app_data, "NetworkClock")
+    else:
+        raise EnvironmentError("This application only supports Windows OS.")
 
     if not os.path.exists(config_dir):
         os.makedirs(config_dir, exist_ok=True)
@@ -46,7 +51,7 @@ def validate_port(port_str):
         else:
             raise ValueError("Port number out of range")
     except ValueError as e:
-        print(f"Invalid port value: {e}")
+        print("Invalid port value.")
         sys.exit(1)
 
 
@@ -59,8 +64,8 @@ def subscribe_to_dep():
     try:
         if os.name == "nt":
             ctypes.windll.kernel32.SetProcessDEPPolicy(1)
-    except Exception as e:
-        print(f"Error subscribing to DEP: {e}")
+    except Exception:
+        print("Error subscribing to DEP.")
 
 
 def drop_privileges():
@@ -72,99 +77,24 @@ def drop_privileges():
             win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
         )
 
-        # List of all privileges
-        privileges = [
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_ASSIGNPRIMARYTOKEN_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_AUDIT_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_BACKUP_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CHANGE_NOTIFY_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_GLOBAL_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_PAGEFILE_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_PERMANENT_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_SYMBOLIC_LINK_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_TOKEN_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_DEBUG_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_ENABLE_DELEGATION_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_IMPERSONATE_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_INC_BASE_PRIORITY_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_INCREASE_QUOTA_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_LOAD_DRIVER_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_LOCK_MEMORY_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_MACHINE_ACCOUNT_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_MANAGE_VOLUME_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_PROF_SINGLE_PROCESS_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_RELABEL_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_REMOTE_SHUTDOWN_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_RESTORE_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_SECURITY_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_SHUTDOWN_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_SYNC_AGENT_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_SYSTEM_ENVIRONMENT_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_SYSTEM_PROFILE_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_SYSTEMTIME_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_TAKE_OWNERSHIP_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_TCB_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_TIME_ZONE_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_TRUSTED_CREDMAN_ACCESS_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_UNDOCK_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_UNSOLICITED_INPUT_NAME
-            ),
+        # Get the current privileges
+        current_privileges = win32security.GetTokenInformation(
+            token, win32security.TokenPrivileges
+        )
+
+        # New privileges list: disable all privileges
+        new_privileges = [
+            (privilege, 0) for privilege, attributes in current_privileges
         ]
 
-        # Remove all privileges except SE_SYSTEMTIME_NAME
-        SE_SYSTEMTIME_NAME = win32security.LookupPrivilegeValue(
-            None, win32security.SE_SYSTEMTIME_NAME
-        )
-        new_privileges = [(SE_SYSTEMTIME_NAME, win32security.SE_PRIVILEGE_ENABLED)]
-
-        for privilege in privileges:
-            if privilege != SE_SYSTEMTIME_NAME:
-                new_privileges.append((privilege, 0))  # 0 means disable the privilege
-
         win32security.AdjustTokenPrivileges(token, False, new_privileges)
-    except Exception as e:
-        print(f"Error dropping privileges: {e}")
+    except Exception:
+        print("Error dropping privileges.")
 
 
 def sanitize_input(input_str):
     dangerous_formats = ["%n", "%s", "%x", "%i", "%o", "%u"]
+    input_str = input_str.replace("%%", "%")
 
     for fmt in dangerous_formats:
         input_str = input_str.replace(fmt, "%%" + fmt[1])
@@ -184,8 +114,35 @@ def validate_date_time(date_str, time_str):
     if not re.match(time_pattern, time_str):
         raise ValueError("Invalid time format. Use HH:MM:SS.")
 
-    # Further validation for date and time values can be done if needed
+    # Further validation for date and time values
+    year, month, day = map(int, date_str.split("-"))
+    hour, minute, second = map(int, time_str.split(":"))
+
+    try:
+        datetime.datetime(year, month, day, hour, minute, second)
+    except ValueError as e:
+        raise ValueError("Invalid date/time value.")
+
     return True
+
+
+def is_interactive_user():
+    try:
+        session_id = win32ts.WTSGetActiveConsoleSessionId()
+        if session_id == -1:
+            return False
+
+        current_session_id = win32security.GetTokenInformation(
+            win32security.OpenProcessToken(
+                win32api.GetCurrentProcess(), win32security.TOKEN_QUERY
+            ),
+            win32security.TokenSessionId,
+        )
+
+        return session_id == current_session_id
+    except Exception:
+        print("Error checking interactive user.")
+        return False
 
 
 def handle_command(command, addr):
@@ -196,8 +153,10 @@ def handle_command(command, addr):
 
             # Check for the 'set' command
             if command.startswith("set "):
-                if addr[0] != "127.0.0.1":
-                    return "Permission denied. Only local users can set the time.\n"
+                if not is_interactive_user():
+                    return (
+                        "Permission denied. Only interactive users can set the time.\n"
+                    )
 
                 parts = command.split(" ")
                 if len(parts) == 3:
@@ -286,11 +245,9 @@ def set_system_time(date, time):
                 None, "runas", sys.executable, params, None, 1
             )
             if result <= 32:
-                print(
-                    f"Failed to execute script as admin, ShellExecuteW returned: {result}"
-                )
-    except Exception as e:
-        print(f"Error: {e}")
+                print("Failed to execute script as admin.")
+    except Exception:
+        print("Error setting system time.")
 
 
 if __name__ == "__main__":
@@ -305,7 +262,7 @@ if __name__ == "__main__":
                 print("Shutting down server...")
                 break
             else:
-                response = handle_command(command, ("127.0.0.1", 0))
+                response = handle_command(command, None)
                 print(response)
                 sys.stdout.flush()
     except KeyboardInterrupt:

@@ -23,91 +23,15 @@ def drop_privileges():
             win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
         )
 
-        # List of all privileges
-        privileges = [
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_ASSIGNPRIMARYTOKEN_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_AUDIT_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_BACKUP_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CHANGE_NOTIFY_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_GLOBAL_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_PAGEFILE_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_PERMANENT_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_SYMBOLIC_LINK_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_CREATE_TOKEN_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_DEBUG_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_ENABLE_DELEGATION_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_IMPERSONATE_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_INC_BASE_PRIORITY_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_INCREASE_QUOTA_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_LOAD_DRIVER_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_LOCK_MEMORY_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_MACHINE_ACCOUNT_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_MANAGE_VOLUME_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_PROF_SINGLE_PROCESS_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_RELABEL_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_REMOTE_SHUTDOWN_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_RESTORE_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_SECURITY_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_SHUTDOWN_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_SYNC_AGENT_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_SYSTEM_ENVIRONMENT_NAME
-            ),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_SYSTEM_PROFILE_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_SYSTEMTIME_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_TAKE_OWNERSHIP_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_TCB_NAME),
-            win32security.LookupPrivilegeValue(None, win32security.SE_TIME_ZONE_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_TRUSTED_CREDMAN_ACCESS_NAME
-            ),
-            win32security.LookupPrivilegeValue(None, win32security.SE_UNDOCK_NAME),
-            win32security.LookupPrivilegeValue(
-                None, win32security.SE_UNSOLICITED_INPUT_NAME
-            ),
-        ]
-
-        # Remove all privileges except SE_SYSTEMTIME_NAME
-        SE_SYSTEMTIME_NAME = win32security.LookupPrivilegeValue(
-            None, win32security.SE_SYSTEMTIME_NAME
+        # Get the current privileges
+        current_privileges = win32security.GetTokenInformation(
+            token, win32security.TokenPrivileges
         )
-        new_privileges = [(SE_SYSTEMTIME_NAME, win32security.SE_PRIVILEGE_ENABLED)]
 
-        for privilege in privileges:
-            if privilege != SE_SYSTEMTIME_NAME:
-                new_privileges.append((privilege, 0))  # 0 means disable the privilege
+        # New privileges list: disable all privileges
+        new_privileges = [
+            (privilege, 0) for privilege, attributes in current_privileges
+        ]
 
         win32security.AdjustTokenPrivileges(token, False, new_privileges)
     except Exception as e:
