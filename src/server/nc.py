@@ -51,7 +51,7 @@ def validate_port(port_str):
         else:
             raise ValueError("Port number out of range")
     except ValueError as e:
-        print("Invalid port value.")
+        print(f"Invalid port value: {e}")
         sys.exit(1)
 
 
@@ -64,8 +64,8 @@ def subscribe_to_dep():
     try:
         if os.name == "nt":
             ctypes.windll.kernel32.SetProcessDEPPolicy(1)
-    except Exception:
-        print("Error subscribing to DEP.")
+    except Exception as e:
+        print(f"Error subscribing to DEP: {e}")
 
 
 def drop_privileges():
@@ -77,28 +77,46 @@ def drop_privileges():
             win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
         )
 
-        # Get the current privileges
-        current_privileges = win32security.GetTokenInformation(
-            token, win32security.TokenPrivileges
-        )
-
-        # New privileges list: disable all privileges
-        new_privileges = [
-            (privilege, 0) for privilege, attributes in current_privileges
+        # Remove all privileges except SE_SYSTEMTIME_NAME
+        privilege_names = [
+            win32security.LookupPrivilegeName(None, privilege[0])
+            for privilege in win32security.GetTokenInformation(
+                token, win32security.TokenPrivileges
+            )
+        ]
+        unnecessary_privileges = [
+            win32security.LookupPrivilegeValue(None, privilege)
+            for privilege in privilege_names
+            if privilege != win32security.SE_SYSTEMTIME_NAME
         ]
 
+        # Remove unnecessary privileges
+        new_privileges = [
+            (privilege, win32security.SE_PRIVILEGE_REMOVED)
+            for privilege in unnecessary_privileges
+        ]
         win32security.AdjustTokenPrivileges(token, False, new_privileges)
-    except Exception:
-        print("Error dropping privileges.")
+
+        # Enable SE_SYSTEMTIME_NAME privilege
+        se_systemtime_privilege = [
+            (
+                win32security.LookupPrivilegeValue(
+                    None, win32security.SE_SYSTEMTIME_NAME
+                ),
+                win32security.SE_PRIVILEGE_ENABLED,
+            )
+        ]
+        win32security.AdjustTokenPrivileges(token, False, se_systemtime_privilege)
+
+    except Exception as e:
+        print(f"Error dropping privileges: {e}")
 
 
 def sanitize_input(input_str):
     dangerous_formats = ["%n", "%s", "%x", "%i", "%o", "%u"]
-    input_str = input_str.replace("%%", "%")
-
+    input_str = input_str.replace("%", "%%")
     for fmt in dangerous_formats:
-        input_str = input_str.replace(fmt, "%%" + fmt[1])
-
+        input_str = input_str.replace(fmt, "")
     return input_str
 
 
@@ -121,7 +139,7 @@ def validate_date_time(date_str, time_str):
     try:
         datetime.datetime(year, month, day, hour, minute, second)
     except ValueError as e:
-        raise ValueError("Invalid date/time value.")
+        raise ValueError(f"Invalid date/time value: {e}")
 
     return True
 
@@ -140,12 +158,12 @@ def is_interactive_user():
         )
 
         return session_id == current_session_id
-    except Exception:
-        print("Error checking interactive user.")
+    except Exception as e:
+        print(f"Error checking interactive user: {e}")
         return False
 
 
-def handle_command(command, addr):
+def handle_command(command, addr, interactive):
     if command:
         try:
             # Sanitize the input command
@@ -153,7 +171,7 @@ def handle_command(command, addr):
 
             # Check for the 'set' command
             if command.startswith("set "):
-                if not is_interactive_user():
+                if not interactive:
                     return (
                         "Permission denied. Only interactive users can set the time.\n"
                     )
@@ -194,7 +212,7 @@ def handle_client(client_socket, addr):
                 line = line.strip()
                 if line:
                     print(f"Received command from client: {line}")
-                    response = handle_command(line, addr)
+                    response = handle_command(line, addr, False)
                     client_socket.send(response.encode("utf-8"))
                     sys.stdout.write(f"Sent response to client: {response}\n> ")
                     sys.stdout.flush()
@@ -246,8 +264,8 @@ def set_system_time(date, time):
             )
             if result <= 32:
                 print("Failed to execute script as admin.")
-    except Exception:
-        print("Error setting system time.")
+    except Exception as e:
+        print(f"Error setting system time: {e}")
 
 
 if __name__ == "__main__":
@@ -262,7 +280,7 @@ if __name__ == "__main__":
                 print("Shutting down server...")
                 break
             else:
-                response = handle_command(command, None)
+                response = handle_command(command, None, True)
                 print(response)
                 sys.stdout.flush()
     except KeyboardInterrupt:

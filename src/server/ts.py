@@ -10,37 +10,52 @@ def subscribe_to_dep():
     try:
         if os.name == "nt":
             ctypes.windll.kernel32.SetProcessDEPPolicy(1)
-    except Exception as e:
-        print(f"Error subscribing to DEP: {e}")
+    except Exception:
+        pass
 
 
 def drop_privileges():
     try:
-        # On Windows, create a restricted token
         current_process = win32api.GetCurrentProcess()
         token = win32security.OpenProcessToken(
             current_process,
             win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
         )
 
-        # Get the current privileges
-        current_privileges = win32security.GetTokenInformation(
-            token, win32security.TokenPrivileges
-        )
-
-        # New privileges list: disable all privileges
-        new_privileges = [
-            (privilege, 0) for privilege, attributes in current_privileges
+        privilege_names = [
+            win32security.LookupPrivilegeName(None, privilege[0])
+            for privilege in win32security.GetTokenInformation(
+                token, win32security.TokenPrivileges
+            )
+        ]
+        unnecessary_privileges = [
+            win32security.LookupPrivilegeValue(None, privilege)
+            for privilege in privilege_names
+            if privilege != win32security.SE_SYSTEMTIME_NAME
         ]
 
+        new_privileges = [
+            (privilege, win32security.SE_PRIVILEGE_REMOVED)
+            for privilege in unnecessary_privileges
+        ]
         win32security.AdjustTokenPrivileges(token, False, new_privileges)
-    except Exception as e:
-        print(f"Error dropping privileges: {e}")
+
+        se_systemtime_privilege = [
+            (
+                win32security.LookupPrivilegeValue(
+                    None, win32security.SE_SYSTEMTIME_NAME
+                ),
+                win32security.SE_PRIVILEGE_ENABLED,
+            )
+        ]
+        win32security.AdjustTokenPrivileges(token, False, se_systemtime_privilege)
+
+    except Exception:
+        pass
 
 
 def set_system_time(date_str, time_str):
     try:
-        print(f"Received date: {date_str}, time: {time_str}")
         new_time = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S")
 
         class SYSTEMTIME(ctypes.Structure):
@@ -70,11 +85,10 @@ def set_system_time(date_str, time_str):
         SetLocalTime.argtypes = [ctypes.POINTER(SYSTEMTIME)]
         SetLocalTime.restype = ctypes.c_bool
 
-        # Set the system time using the new time
         if not SetLocalTime(ctypes.byref(st)):
-            print("Failed to set system time.")
+            pass
     except ValueError:
-        print("Invalid datetime format. Please use YYYY-MM-DD HH:MM:SS")
+        pass
 
 
 if __name__ == "__main__":
