@@ -77,7 +77,7 @@ def drop_privileges():
             win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY,
         )
 
-        # Remove all privileges except SE_SYSTEMTIME_NAME
+        # Remove all privileges
         privilege_names = [
             win32security.LookupPrivilegeName(None, privilege[0])
             for privilege in win32security.GetTokenInformation(
@@ -87,7 +87,6 @@ def drop_privileges():
         unnecessary_privileges = [
             win32security.LookupPrivilegeValue(None, privilege)
             for privilege in privilege_names
-            if privilege != win32security.SE_SYSTEMTIME_NAME
         ]
 
         # Remove unnecessary privileges
@@ -97,27 +96,37 @@ def drop_privileges():
         ]
         win32security.AdjustTokenPrivileges(token, False, new_privileges)
 
-        # Enable SE_SYSTEMTIME_NAME privilege
-        se_systemtime_privilege = [
-            (
-                win32security.LookupPrivilegeValue(
-                    None, win32security.SE_SYSTEMTIME_NAME
-                ),
-                win32security.SE_PRIVILEGE_ENABLED,
-            )
-        ]
-        win32security.AdjustTokenPrivileges(token, False, se_systemtime_privilege)
-
     except Exception as e:
         print(f"Error dropping privileges: {e}")
 
 
 def sanitize_input(input_str):
+    # List of dangerous formats in printf-style formatting
     dangerous_formats = ["%n", "%s", "%x", "%i", "%o", "%u"]
-    input_str = input_str.replace("%", "%%")
+
+    # Escape each dangerous format by replacing % with %%
     for fmt in dangerous_formats:
-        input_str = input_str.replace(fmt, "")
-    return input_str
+        input_str = input_str.replace(fmt, "%%" + fmt[1])
+
+    # Prevent common format strings used in datetime from being used maliciously
+    safe_formats = ["%Y", "%m", "%d", "%H", "%M", "%S"]
+
+    # Remove any % that is not part of a safe format
+    sanitized_str = ""
+    i = 0
+    while i < len(input_str):
+        if (
+            input_str[i] == "%"
+            and (i + 1 < len(input_str))
+            and input_str[i : i + 2] not in safe_formats
+        ):
+            sanitized_str += "%%"
+            i += 1  # Skip the character after %
+        else:
+            sanitized_str += input_str[i]
+        i += 1
+
+    return sanitized_str
 
 
 def validate_date_time(date_str, time_str):
